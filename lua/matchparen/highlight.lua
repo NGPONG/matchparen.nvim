@@ -27,14 +27,28 @@ end
 ---@param matchline integer 0-based line number
 ---@param matchcol integer 0-based column number
 local function hl_add(curline, curcol, matchline, matchcol)
-  extmarks.current = set_extmark(curline, curcol)
-  extmarks.match = set_extmark(matchline, matchcol)
+  local ok1, ret1 = pcall(set_extmark, curline, curcol)
+  if ok1 then
+    extmarks.current = ret1
+  end
+
+  local ok2, ret2 = pcall(set_extmark, matchline, matchcol)
+  if ok2 then
+    extmarks.match = ret2
+  end
 end
 
 ---Removes brackets highlight by deleting buffer extmarks
 function hl.remove()
-  vim.api.nvim_buf_del_extmark(0, namespace, extmarks.current)
-  vim.api.nvim_buf_del_extmark(0, namespace, extmarks.match)
+  if extmarks.current then
+    vim.api.nvim_buf_del_extmark(0, namespace, extmarks.current)
+    extmarks.current = nil
+  end
+
+  if extmarks.match then
+    vim.api.nvim_buf_del_extmark(0, namespace, extmarks.match)
+    extmarks.match = nil
+  end
 end
 
 ---Returns matched bracket option and its column or nil
