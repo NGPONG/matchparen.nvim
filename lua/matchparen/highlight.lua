@@ -4,7 +4,7 @@ local search = require('matchparen.search')
 
 local hl = {}
 local namespace = vim.api.nvim_create_namespace(opts.augroup_name)
-local extmarks = { match = 0 }
+local extmarks = { current = 0, match = 0 }
 
 ---Wrapper for nvim_buf_set_extmark()
 ---@param line integer 0-based line number
@@ -15,9 +15,18 @@ local function set_extmark(line, col)
 end
 
 ---Add brackets highlight
+---@param curline integer 0-based line number
+---@param curcol integer 0-based column number
 ---@param matchline integer 0-based line number
 ---@param matchcol integer 0-based column number
-local function hl_add(matchline, matchcol)
+local function hl_add(curline, curcol, matchline, matchcol)
+  if utils.is_in_insert_mode() then
+    local ok, ret = pcall(set_extmark, curline, curcol)
+    if ok then
+      extmarks.current = ret
+    end
+  end
+
   local ok, ret = pcall(set_extmark, matchline, matchcol)
   if ok then
     extmarks.match = ret
@@ -26,6 +35,11 @@ end
 
 ---Removes brackets highlight by deleting buffer extmarks
 function hl.remove()
+  if extmarks.current then
+    vim.api.nvim_buf_del_extmark(0, namespace, extmarks.current)
+    extmarks.current = nil
+  end
+
   if extmarks.match then
     vim.api.nvim_buf_del_extmark(0, namespace, extmarks.match)
     extmarks.match = nil
@@ -71,7 +85,7 @@ function hl.update(in_insert)
 
   local matchline, matchcol = search.match_pos(match_bracket, line, col)
   if matchline then
-    hl_add(matchline, matchcol or 0)
+    hl_add(line, col, matchline, matchcol or 0)
   end
 end
 
