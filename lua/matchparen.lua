@@ -1,5 +1,6 @@
 local options = require('matchparen.options')
 local hl = require('matchparen.highlight')
+local Bouncer = require('matchparen.debounce')
 
 local fn = vim.fn
 local opts = options.opts
@@ -54,22 +55,28 @@ local function create_autocmds()
     vim.api.nvim_create_autocmd(event, config)
   end
 
-  autocmd('InsertEnter', function() hl.update(true) end, {
-    desc = "Highlight matching pairs",
-  })
+  autocmd('InsertEnter', function()
+    hl.update(true)
+  end, { desc = "Highlight matching pairs", })
+
   autocmd({
     'WinEnter',
     'CursorMoved',
     'CursorMovedI',
     'TextChanged',
     'TextChangedI',
-  }, function() hl.update(false) end, { desc = "Highlight matching pairs" })
+  }, Bouncer.throttle_trailing(opts.debounce_time, true, vim.schedule_wrap(function()
+    hl.update(false)
+  end), { desc = "Highlight matching pairs" }))
+
   autocmd({ 'WinLeave', 'BufLeave' }, function() hl.remove() end, {
     desc = "Hide matching pairs highlight",
   })
+
   autocmd({ 'WinEnter', 'BufWinEnter', 'FileType' }, function() update_matchpairs() end, {
     desc = "Update cache of matchpairs option",
   })
+
   autocmd('OptionSet', function() update_matchpairs() end, {
     pattern = 'matchpairs',
     desc = "Update cache of matchpairs option",

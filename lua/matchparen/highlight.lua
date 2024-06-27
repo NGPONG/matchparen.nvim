@@ -6,13 +6,6 @@ local hl = {}
 local namespace = vim.api.nvim_create_namespace(opts.augroup_name)
 local extmarks = { match = 0 }
 
-local timer = vim.loop.new_timer()
--- On failing creating a timer, just silently don't use debounce
-if not timer then
-  opts.debounce_time = nil
-  timer = {}
-end
-
 ---Wrapper for nvim_buf_set_extmark()
 ---@param line integer 0-based line number
 ---@param col integer 0-based column number
@@ -22,11 +15,9 @@ local function set_extmark(line, col)
 end
 
 ---Add brackets highlight
----@param curline integer 0-based line number
----@param curcol integer 0-based column number
 ---@param matchline integer 0-based line number
 ---@param matchcol integer 0-based column number
-local function hl_add(curline, curcol, matchline, matchcol)
+local function hl_add(matchline, matchcol)
   local ok, ret = pcall(set_extmark, matchline, matchcol)
   if ok then
     extmarks.match = ret
@@ -65,43 +56,22 @@ end
 ---and then if there is matching brackets pair at the new cursor position highlight them
 ---@param in_insert boolean
 function hl.update(in_insert)
-  if opts.debounce_time then
-    timer:stop()
-  end
+  hl.remove()
 
   local line, col = utils.get_cursor_pos()
   if utils.is_inside_fold(line) then
-    hl.remove()
     return
   end
 
   local match_bracket
   match_bracket, col = get_bracket(col, in_insert)
   if not match_bracket then
-    hl.remove()
     return
   end
 
-  local highlight_brackets = function()
-    local matchline, matchcol = search.match_pos(match_bracket, line, col)
-    hl.remove()
-    if matchline then
-      hl_add(line, col, matchline, matchcol or 0)
-    end
-  end
-
-  if opts.debounce_time then
-    local cur_buf = vim.api.nvim_get_current_buf()
-
-    timer:start(opts.debounce_time, 0, function()
-      vim.schedule(function()
-        if cur_buf == vim.api.nvim_get_current_buf() then
-          highlight_brackets()
-        end
-      end)
-    end)
-  else
-    highlight_brackets()
+  local matchline, matchcol = search.match_pos(match_bracket, line, col)
+  if matchline then
+    hl_add(matchline, matchcol or 0)
   end
 end
 
