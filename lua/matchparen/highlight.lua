@@ -4,7 +4,7 @@ local search = require('matchparen.search')
 
 local hl = {}
 local namespace = vim.api.nvim_create_namespace(opts.augroup_name)
-local extmarks = { current = 0, match = 0 }
+local extmarks = { match = 0 }
 
 local timer = vim.loop.new_timer()
 -- On failing creating a timer, just silently don't use debounce
@@ -27,24 +27,14 @@ end
 ---@param matchline integer 0-based line number
 ---@param matchcol integer 0-based column number
 local function hl_add(curline, curcol, matchline, matchcol)
-  local ok1, ret1 = pcall(set_extmark, curline, curcol)
-  if ok1 then
-    extmarks.current = ret1
-  end
-
-  local ok2, ret2 = pcall(set_extmark, matchline, matchcol)
-  if ok2 then
-    extmarks.match = ret2
+  local ok, ret = pcall(set_extmark, matchline, matchcol)
+  if ok then
+    extmarks.match = ret
   end
 end
 
 ---Removes brackets highlight by deleting buffer extmarks
 function hl.remove()
-  if extmarks.current then
-    vim.api.nvim_buf_del_extmark(0, namespace, extmarks.current)
-    extmarks.current = nil
-  end
-
   if extmarks.match then
     vim.api.nvim_buf_del_extmark(0, namespace, extmarks.match)
     extmarks.match = nil
@@ -101,11 +91,11 @@ function hl.update(in_insert)
   end
 
   if opts.debounce_time then
-    local current = vim.api.nvim_get_current_buf()
+    local cur_buf = vim.api.nvim_get_current_buf()
 
     timer:start(opts.debounce_time, 0, function()
       vim.schedule(function()
-        if current == vim.api.nvim_get_current_buf() then
+        if cur_buf == vim.api.nvim_get_current_buf() then
           highlight_brackets()
         end
       end)
