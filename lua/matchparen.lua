@@ -1,6 +1,5 @@
 local options = require('matchparen.options')
 local hl = require('matchparen.highlight')
-local Bouncer = require('matchparen.debounce')
 
 local fn = vim.fn
 local opts = options.opts
@@ -55,8 +54,8 @@ local function create_autocmds()
     vim.api.nvim_create_autocmd(event, config)
   end
 
-  autocmd('InsertEnter', function()
-    hl.update(true)
+  autocmd('InsertEnter', function(opts)
+    hl.update(true, opts.buf)
   end, { desc = "Highlight matching pairs", })
 
   autocmd({
@@ -65,11 +64,11 @@ local function create_autocmds()
     'CursorMovedI',
     'TextChanged',
     'TextChangedI',
-  }, Bouncer.throttle_trailing(opts.debounce_time, true, vim.schedule_wrap(function()
-    hl.update(false)
-  end), { desc = "Highlight matching pairs" }))
+  }, function(opts)
+    hl.update(false, opts.buf)
+  end, { desc = "Highlight matching pairs" })
 
-  autocmd({ 'WinLeave', 'BufLeave' }, function() hl.remove() end, {
+  autocmd({ 'WinLeave', 'BufLeave' }, function(opts) hl.remove(opts.buf) end, {
     desc = "Hide matching pairs highlight",
   })
 
@@ -109,7 +108,7 @@ end
 ---Disables the plugin
 local function disable()
   delete_autocmds()
-  hl.remove()
+  hl.reset()
 end
 
 ---Creates plugin's custom commands

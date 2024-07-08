@@ -4,6 +4,14 @@ local async = require('plenary.async')
 
 local uv = vim.loop
 
+local function tbl_pack(...)
+  return { n = select("#", ...), ... }
+end
+
+local function tbl_unpack(t, i, j)
+  return table.unpack(t, i or 1, j or t.n or table.maxn(t))
+end
+
 function M.try_close(...)
   local args = { ... }
 
@@ -57,7 +65,7 @@ function M.debounce_trailing(ms, rush_first, fn)
       lock = true
       fn(...)
     else
-      args = Tools.tbl_pack(...)
+      args = tbl_pack(...)
     end
 
     timer:start(ms, 0, function()
@@ -66,7 +74,7 @@ function M.debounce_trailing(ms, rush_first, fn)
       if args then
         local a = args
         args = nil
-        fn(Tools.tbl_unpack(a))
+        fn(tbl_unpack(a))
       end
     end)
   end)
@@ -98,7 +106,7 @@ function M.throttle_trailing(ms, rush_first, fn)
 
   throttled_fn = wrap(timer, function(...)
     if lock or (not rush_first and args == nil) then
-      args = Tools.tbl_pack(...)
+      args = tbl_pack(...)
     end
 
     if lock then return end
@@ -115,9 +123,9 @@ function M.throttle_trailing(ms, rush_first, fn)
         local a = args
         args = nil
         if rush_first then
-          throttled_fn(Tools.tbl_unpack(a))
+          throttled_fn(tbl_unpack(a))
         else
-          fn(Tools.tbl_unpack(a))
+          fn(tbl_unpack(a))
         end
       end
     end)
@@ -136,12 +144,12 @@ function M.throttle_render(framerate, fn)
   local args, last
 
   throttled_fn = async.void(function(...)
-    args = Tools.tbl_pack(...)
+    args = tbl_pack(...)
     if lock then return end
 
     lock = true
     async.util.scheduler()
-    fn(Tools.tbl_unpack(args))
+    fn(tbl_unpack(args))
     args = nil
 
     if use_framerate then
@@ -159,7 +167,7 @@ function M.throttle_render(framerate, fn)
     lock = false
 
     if args ~= nil then
-      throttled_fn(Tools.tbl_unpack(args))
+      throttled_fn(tbl_unpack(args))
     end
   end)
 

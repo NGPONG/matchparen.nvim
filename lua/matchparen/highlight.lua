@@ -1,48 +1,65 @@
 local opts = require('matchparen.options').opts
 local utils = require('matchparen.utils')
 local search = require('matchparen.search')
+local bouncer = require('matchparen.debounce')
 
 local hl = {}
+local extmarks = {}
 local namespace = vim.api.nvim_create_namespace(opts.augroup_name)
-local extmarks = { current = 0, match = 0 }
 
 ---Wrapper for nvim_buf_set_extmark()
+---@param bufnr integer buffer number
 ---@param line integer 0-based line number
 ---@param col integer 0-based column number
-local function set_extmark(line, col)
-  return vim.api.nvim_buf_set_extmark(0, namespace, line, col,
+local function set_extmark(bufnr, line, col)
+  return vim.api.nvim_buf_set_extmark(bufnr, namespace, line, col,
     { end_col = col + 1, hl_group = opts.hl_group })
 end
 
 ---Add brackets highlight
+---@param bufnr integer buffer number
 ---@param curline integer 0-based line number
 ---@param curcol integer 0-based column number
 ---@param matchline integer 0-based line number
 ---@param matchcol integer 0-based column number
-local function hl_add(curline, curcol, matchline, matchcol)
-  if utils.is_in_insert_mode() then
-    local ok, ret = pcall(set_extmark, curline, curcol)
-    if ok then
-      extmarks.current = ret
-    end
+local function hl_add(bufnr, curline, curcol, matchline, matchcol)
+  local extmark = extmarks[bufnr]
+  if not extmark then
+    extmarks[bufnr] = {}
+    extmark = extmarks[bufnr]
   end
 
-  local ok, ret = pcall(set_extmark, matchline, matchcol)
+  local ok, ret = pcall(set_extmark, bufnr, curline, curcol)
   if ok then
-    extmarks.match = ret
+    extmark.current = ret
+  end
+
+  local ok, ret = pcall(set_extmark, bufnr, matchline, matchcol)
+  if ok then
+    extmark.match = ret
   end
 end
 
 ---Removes brackets highlight by deleting buffer extmarks
-function hl.remove()
-  if extmarks.current then
-    vim.api.nvim_buf_del_extmark(0, namespace, extmarks.current)
-    extmarks.current = nil
+---@param bufnr integer buffer number
+function hl.remove(bufnr)
+  local extmark = extmarks[bufnr]
+  if not extmark then
+    return
   end
 
-  if extmarks.match then
-    vim.api.nvim_buf_del_extmark(0, namespace, extmarks.match)
-    extmarks.match = nil
+  if extmark.current then
+    vim.api.nvim_buf_del_extmark(bufnr, namespace, extmark.current)
+    extmark.current = nil
+  end
+
+  if extmark.match then
+    vim.api.nvim_buf_del_extmark(bufnr, namespace, extmark.match)
+    extmark.match = nil
+  end
+
+  if not extmark.match and not extmark.current then
+    extmarks[bufnr] = nil
   end
 end
 
@@ -69,8 +86,11 @@ end
 ---Updates the highlight of brackets by first removing previous highlight
 ---and then if there is matching brackets pair at the new cursor position highlight them
 ---@param in_insert boolean
-function hl.update(in_insert)
-  hl.remove()
+---@param bufnr integer? buffer number
+hl.update = bouncer.throttle_trailing(opts.debounce_time, true, vim.schedule_wrap(function(in_insert, bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  hl.remove(bufnr)
 
   local line, col = utils.get_cursor_pos()
   if utils.is_inside_fold(line) then
@@ -85,7 +105,13 @@ function hl.update(in_insert)
 
   local matchline, matchcol = search.match_pos(match_bracket, line, col)
   if matchline then
-    hl_add(line, col, matchline, matchcol or 0)
+    hl_add(bufnr, line, col, matchline, matchcol or 0)
+  end
+end))
+
+function hl.reset()
+  for _bufnr, _ in pairs(extmarks or {}) do
+    hl.remove(_bufnr)
   end
 end
 
